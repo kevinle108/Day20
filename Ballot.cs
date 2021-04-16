@@ -21,7 +21,7 @@ namespace Day18
                 _currentContest = Contests[_currentContestIndex];
             }
         }
-        readonly Dictionary<char, string> AllOptions = new Dictionary<char, string>() 
+        readonly Dictionary<char, string> AllInputOptions = new Dictionary<char, string>() 
         {
             {'0', "0: Display Ballot" },
             {'2', "2: Prev Contest" },
@@ -79,7 +79,7 @@ namespace Day18
         public List<char> DisplayOptions()
         {
             List<char> options = new List<char>() { '0', '2', '4', '5', '6', '8' };
-            var optionsSet = new Dictionary<char, string>(AllOptions);
+            var optionsSet = new Dictionary<char, string>(AllInputOptions);
             //0: Display Ballot
             //2: Prev Contest
             //4: Prev Candidate

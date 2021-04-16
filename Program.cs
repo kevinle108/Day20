@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace Day18
 {
+    
+
     class Program
     {
         static void Main(string[] args)
@@ -14,80 +17,60 @@ namespace Day18
             Vote(ballot);
         }
 
+        class BallotFromJson
+        {
+            public string BallotName { get; set; }
+            public ContestHelper[] Contests { get; set; }
+
+            public class ContestHelper
+            {
+                public string ContestCode { get; set; }
+                public string[] CandidateCodes { get; set; }
+            }
+        }
+
+        class ContestFromJson
+        {
+            public string ContestName { get; set; }
+            public int MaxChoices { get; set; }
+            public bool WriteIn { get; set; }
+            public CandidateHelper[] Candidates { get; set; }
+
+            public class CandidateHelper
+            {
+                public string CandidateCode { get; set; }
+                public string CandidateName { get; set; }
+                public string CandidateParty { get; set; }
+            }
+        }
+
         static Ballot BuildBallotFromJson(string fileName)
         {
-            string contestCode;
-            string contestData;
-            JsonDocument contestDoc;
-            JsonElement contestRoot;
-            string contestName;
-            int contestMaxChoices;
-            bool contestWriteIn;
-            JsonElement contestCandidates;
+
+            string data = File.ReadAllText(fileName);
+            BallotFromJson deserializedBallot = JsonSerializer.Deserialize<BallotFromJson>(data);
+            Ballot ballot = new Ballot(deserializedBallot.BallotName);
             Contest contest;
-
-            string candidateCode;
-            string candidateName;
-            string candidateParty;
             Candidate candidate;
-
-            Dictionary<string, Candidate> candidatesTable;
-            List<string> candidatesOrder;
-
-            // access the ballot json file 
-            string ballotData = File.ReadAllText(fileName);
-            JsonDocument ballotDoc = JsonDocument.Parse(ballotData);
-            JsonElement ballotRoot = ballotDoc.RootElement;
-            string ballotName = ballotRoot.GetProperty("BallotName").ToString();
-            JsonElement contests = ballotRoot.GetProperty("Contests");
-            Ballot ballot = new Ballot(ballotName);
-
-            // for each contest in ballot
-            for (int i = 0; i < contests.GetArrayLength(); i++)
+            foreach (BallotFromJson.ContestHelper contestItem in deserializedBallot.Contests)
             {
-                // get the order of candidate codes
-                JsonElement order = contests[i].GetProperty("CandidateCodes");
-                candidatesOrder = new List<string>();
-                for (int orderIndex = 0; orderIndex < order.GetArrayLength(); orderIndex++)
+                string contestData = File.ReadAllText($"CONTEST_{contestItem.ContestCode}.json");
+                ContestFromJson deserializedContest = JsonSerializer.Deserialize<ContestFromJson>(contestData);
+                contest = new Contest(contestItem.ContestCode, deserializedContest.ContestName, deserializedContest.MaxChoices);
+
+                // look at the order of candidates in contestDeserialized.CandidateCodes
+                foreach (string candidateCode in contestItem.CandidateCodes)
                 {
-                    candidatesOrder.Add(order[orderIndex].GetString());
+                    // find the candidate with the code
+                    ContestFromJson.CandidateHelper foundCandidate = deserializedContest.Candidates.First(x => x.CandidateCode == candidateCode);
+
+                    // create and add the candidate to the contest
+                    candidate = new Candidate(candidateCode, foundCandidate.CandidateName, foundCandidate.CandidateParty);
+                    contest.AddCandidate(candidate);
                 }
 
-                // begin new candidatesTable
-                candidatesTable = new Dictionary<string, Candidate>();
-
-                // access the contest json file to get all candidate information
-                contestCode = contests[i].GetProperty("ContestCode").ToString();
-                contestData = File.ReadAllText("CONTEST_" + contestCode + ".json");
-                contestDoc = JsonDocument.Parse(contestData);
-                contestRoot = contestDoc.RootElement;
-                contestName = contestRoot.GetProperty("ContestName").GetString();
-                contestRoot.GetProperty("MaxChoices").TryGetInt32(out contestMaxChoices);
-                contestWriteIn = contestRoot.GetProperty("WriteIn").GetBoolean();
-                contestCandidates = contestRoot.GetProperty("Candidates");
-                contest = new Contest(contestCode, contestName, contestMaxChoices);
-
-                // for each candidate in contest
-                for (int j = 0; j < contestCandidates.GetArrayLength(); j++)
-                {
-                    candidateCode = contestCandidates[j].GetProperty("CandidateCode").GetString();
-                    candidateName = contestCandidates[j].GetProperty("CandidateName").GetString();
-                    candidateParty = contestCandidates[j].GetProperty("CandidateParty").GetString();
-                    candidate = new Candidate(candidateCode, candidateName, candidateParty);
-                    //contest.AddCandidate(candidate);
-
-                    // add candidate and its candidateCode to candidatesTable
-                    candidatesTable.Add(candidateCode, candidate);
-                }
-
-                // add candidates in the correct order
-                foreach (string candCode in candidatesOrder)
-                {
-                    contest.AddCandidate(candidatesTable[candCode]);
-                }
-
-                // add writeins if appropriate
-                if (contestWriteIn) contest.AddBlankWriteIns();
+                // check if contest needs writeins
+                if (deserializedContest.WriteIn) contest.AddBlankWriteIns();
 
                 ballot.AddContest(contest);
             }
