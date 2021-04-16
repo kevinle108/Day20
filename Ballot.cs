@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Day18
+namespace Day20
 {
     class Ballot
     {
