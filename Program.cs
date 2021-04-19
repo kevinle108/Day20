@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
 
 namespace Day20
@@ -12,7 +13,8 @@ namespace Day20
     {
         static void Main(string[] args)
         {
-            Ballot ballot = BuildBallotFromJson("BALLOT_0002.json");
+            Ballot ballot = BuildBallotFromJsonWeb("https://kevinle108.github.io/JsonCollection/BALLOT_0001.json");
+            //Ballot ballot = BuildBallotFromJson("BALLOT_0002.json");
             ballot.Output();
             Vote(ballot);
         }
@@ -42,6 +44,43 @@ namespace Day20
                 public string CandidateName { get; set; }
                 public string CandidateParty { get; set; }
             }
+        }
+
+        static Ballot BuildBallotFromJsonWeb(string url)
+        {
+            HttpClient client = new HttpClient();
+            HttpRequestMessage webRequest = new HttpRequestMessage(HttpMethod.Get, url);
+            HttpResponseMessage response = client.Send(webRequest);
+            Stream stream = response.Content.ReadAsStream();
+            StreamReader reader = new StreamReader(stream);
+            string data = reader.ReadToEnd();
+            BallotFromJson deserializedBallot = JsonSerializer.Deserialize<BallotFromJson>(data);
+            Ballot ballot = new Ballot(deserializedBallot.BallotName);
+            Contest contest;
+            Candidate candidate;
+            foreach (BallotFromJson.ContestHelper contestItem in deserializedBallot.Contests)
+            {
+                string contestData = File.ReadAllText($"CONTEST_{contestItem.ContestCode}.json");
+                ContestFromJson deserializedContest = JsonSerializer.Deserialize<ContestFromJson>(contestData);
+                contest = new Contest(contestItem.ContestCode, deserializedContest.ContestName, deserializedContest.MaxChoices);
+
+                // look at the order of candidates in contestDeserialized.CandidateCodes
+                foreach (string candidateCode in contestItem.CandidateCodes)
+                {
+                    // find the candidate with the code
+                    ContestFromJson.CandidateHelper foundCandidate = deserializedContest.Candidates.First(x => x.CandidateCode == candidateCode);
+
+                    // create and add the candidate to the contest
+                    candidate = new Candidate(candidateCode, foundCandidate.CandidateName, foundCandidate.CandidateParty);
+                    contest.AddCandidate(candidate);
+                }
+
+                // check if contest needs writeins
+                if (deserializedContest.WriteIn) contest.AddBlankWriteIns();
+
+                ballot.AddContest(contest);
+            }
+            return ballot;
         }
 
         static Ballot BuildBallotFromJson(string fileName)
